@@ -3,10 +3,13 @@ import fetch from 'node-fetch'
 
 const app = express()
 const port = 3000
+app.use(express.json());
 
-let cookie = 'SLBBAK=597bc5323584f3ba9bb92c1fdd57409d; JSESSIONID=A9DFCAEFC3A17C88C83D713F8A759678; ERPSESSIONID=5d5dbf30-52c2-4da8-a27c-144de77495dc; uname=Mindcoco; puname=Mindcoco; sign=48b982c96cb082858580a62e88ea5901; isNewWms=true; puname2=Mindcoco; sign2=48b982c96cb082858580a62e88ea5901; _ati=3450320791274; chooseToken=eyJhbGciOiJIUzI1NiJ9.eyJ1c2VyTmFtZSI6Ik1pbmRjb2NvIiwiZXhwIjoxNzU5MDM4MDYwLCJ1c2VySWQiOjczMTgzNX0.1TbBH298ZjlU2ijS-73D2YW0cMXa472hp_sRU6HXAow'
+let cookie = null
 
 function addGift(orderId, giftId) {
+  if (!cookie) return
+
     fetch("https://www.mangoerp.com/erp/order/item/ajax?_xid=68d7799983c8eaa0d77c9e87", {
   "headers": {
     "accept": "application/json, text/plain, */*",
@@ -30,6 +33,8 @@ function addGift(orderId, giftId) {
 }
 
 function getOrders() {
+  if (!cookie) return Promise.resolve([])
+
   return fetch("https://www.mangoerp.com/erp/order/data/search.json?_xid=68d77a5883c8eaa0d77c9e8d", {
   headers: {
     "accept": "application/json, text/plain, *",
@@ -50,13 +55,23 @@ function getOrders() {
   "body": "phase=order&pageSize=500&page=1&fuzzyOrderId=&fuzzySkuCode=&fuzzyGoodsCode=&fuzzyLogisticsNo=&fuzzyPackageId=&orderId=%5B%5D&traceId=%5B%5D&packageId=%5B%5D&sysAgentOrderId=%5B%5D&productIds=%5B%5D&productCode=%5B%5D&channelId=%5B%5D&agentId=%5B%5D&warehouseIds=%5B%5D&sku=%5B%5D&goodsCodes=%5B%5D&logisticsServiceName=%5B%5D&orderStatus=%5B%5D&buyer=%5B%5D&wishReceiverCountry=%5B%5D&buyerLoginId=%5B%5D&platform=%5B%5D&shops=%5B%5D&country=%5B%5D&labelId=%5B%5D&noLabel=&isPrinted=&type=&status=normal&payAmount=%5B%5D&packageCreateTime=%5B%5D&shipmentTime=%5B%5D&gmtVirtualSend=%5B%5D&payTime=%5B%5D&printTime=%5B%5D&datetime=%5B%5D&orderCreateTime=%5B%5D&ozontimetime=%5B%5D&timetimetime=%5B%5D&itemCount=&electric=&isReissue=&hasIssue=&isRefunded=&isSplit=&isShopeeFmtnBind=&hasStock=&purchaseStatus=&hasProxyPackage=&stockStatus=&submitChinapostStatus=&domesticTrackingNo=%5B%5D&hasPrintMemo=&isLocalRemark=%5B%5D&hasLocalMemo=&sort=&outOfStock=&platformWarehouse=&pairSku=&hasTracking=&purchaseOrderNos=%5B%5D",
   "method": "POST"
   })
-  .then(res => res.json())
-  .then(json => json.data.list)
+  .then(async (res) => {
+    try {
+      const json = await res.json()
+      return json.data.list
+    } catch (e) {
+      return null
+    }
+  })
 }
 
 app.get('/', (req, res) => {
   getOrders()
-  .then(orders => res.send(`
+  .then(orders => {
+    if (orders == null) {
+      res.send("Something went wrong")
+    } else {
+  res.send(`
   <!doctype html>
   <head>
     <style>
@@ -78,9 +93,27 @@ app.get('/', (req, res) => {
           location.reload()
         })
       }
+
+      function saveCookie() {
+        const value = document.getElementById('cookie').value
+        if (!value.trim()) return
+
+        fetch('/save-cookie', {
+         method: 'POST',
+         headers: {
+           'content-type': 'application/json'
+         },
+         body: JSON.stringify({ cookie: value })
+       })
+      }
     </script>
 
   <body>
+  <h2>Cookie</h2>
+  <textarea cols="20" rows="5" id="cookie"></textarea>
+  <button onclick="saveCookie()">Save</button>
+
+  ${cookie ? `
   <h2>901 orders</h2>
   ${orders.filter(order => order.payAmount > 29.99 && order.payAmount <= 50).map(order => `
   <div class="order">
@@ -109,10 +142,12 @@ app.get('/', (req, res) => {
   `).join('')}
 
   <button id="go" onclick="addGifts()">GO</button>
-  `))
+  ` : '<h3>No cookie, please save one first</h3>'}`)
+    }}
+  )
 })
 
-app.post('/add-gift', (req, res) => {
+app.post('/add-gifts', (req, res) => {
   getOrders().then(orders => orders.forEach(order => {
     if (order.payAmount > 29.99 && order.payAmount <= 50 && !order.orderItemList.some(item => item.skuCode === 'GIFT_200901'))
       addGift(order.id, 31347161)
@@ -120,7 +155,16 @@ app.post('/add-gift', (req, res) => {
       addGift(order.id, 31347162)
     if (order.payAmount > 129.99 && order.payAmount <= 300 && !order.orderItemList.some(item => item.skuCode === '3000831EYE'))
       addGift(order.id, 30172468)
+    res.send('')
   }))
+})
+
+app.post('/save-cookie', (req, res) => {
+  cookie = req.body.cookie
+  setTimeout(() => {
+    cookie = null
+  }, 60 * 60 * 1000)
+  res.send('')
 })
 
 app.listen(port, () => {
