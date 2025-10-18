@@ -7,6 +7,27 @@ app.use(express.json());
 
 let cookie = null
 
+const GIFT_CONFIG = [
+  {
+    skuCode: 'GIFT_200901',
+    itemId: 31347161,
+    fromAmount: 32,
+    toAmount: 60
+  },
+  {
+    skuCode: '3000832ORBIT_1',
+    itemId: 30172473,
+    fromAmount: 60,
+    toAmount: 100
+  },
+  {
+    skuCode: '3000831EYE',
+    itemId: 30172468,
+    fromAmount: 100,
+    toAmount: 300
+  },
+]
+
 function addGift(orderId, giftId) {
   if (!cookie) return
 
@@ -113,50 +134,36 @@ app.get('/', (req, res) => {
   <textarea cols="20" rows="5" id="cookie"></textarea>
   <button onclick="saveCookie()">Save</button>
 
-  ${cookie ? `
-  <h2>901 orders</h2>
-  ${orders.filter(order => order.payAmount > 29.99 && order.payAmount <= 50).map(order => `
+  ${cookie ?
+  GIFT_CONFIG.map(config =>
+  `
+  <h2>${config.skuCode}</h2>
+  ${orders.filter(order => order.payAmount >= config.fromAmount && order.payAmount < config.toAmount).map(order => `
   <div class="order">
   <div>Buyer name: ${order.buyerName}</div>
   <div>Amount: ${order.payAmount}</div>
-  ${order.orderItemList.some(item => item.skuCode === 'GIFT_200901') ? '<div class="green">Processed</div>' : '<div class="red">Not Processed</div>'}
+  ${order.orderItemList.some(item => item.skuCode === config.skuCode) ? '<div class="green">Processed</div>' : '<div class="red">Not Processed</div>'}
   </div>
   `).join('')}
+  `
+  ).join('') +
 
-  <h2>902 orders</h2>
-  ${orders.filter(order => order.payAmount > 50 && order.payAmount <= 80).map(order => `
-  <div class="order">
-  <div>Buyer name: ${order.buyerName}</div>
-  <div>Amount: ${order.payAmount}</div>
-  ${order.orderItemList.some(item => item.skuCode === 'GIFT_200902') ? '<div class="green">Processed</div>' : '<div class="red">Not Processed</div>'}
-  </div>
-  `).join('')}
-
-  <h2>EYE</h2>
-  ${orders.filter(order => order.payAmount > 129.99 && order.payAmount <= 300).map(order => `
-  <div class="order">
-  <div>Buyer name: ${order.buyerName}</div>
-  <div>Amount: ${order.payAmount}</div>
-  ${order.orderItemList.some(item => item.skuCode === '3000831EYE') ? '<div class="green">Processed</div>' : '<div class="red">Not Processed</div>'}
-  </div>
-  `).join('')}
-
-  <button id="go" onclick="addGifts()">GO</button>
-  ` : '<h3>No cookie, please save one first</h3>'}`)
+  '<button id="go" onclick="addGifts()">GO</button>'
+   : '<h3>No cookie, please save one first</h3>'}`)
     }}
   )
 })
 
 app.post('/add-gifts', (req, res) => {
-  getOrders().then(orders => orders.forEach(order => {
-    if (order.payAmount > 29.99 && order.payAmount <= 50 && !order.orderItemList.some(item => item.skuCode === 'GIFT_200901'))
-      addGift(order.id, 31347161)
-    if (order.payAmount > 50 && order.payAmount <= 80 && !order.orderItemList.some(item => item.skuCode === 'GIFT_200902'))
-      addGift(order.id, 31347162)
-    if (order.payAmount > 129.99 && order.payAmount <= 300 && !order.orderItemList.some(item => item.skuCode === '3000831EYE'))
-      addGift(order.id, 30172468)
+  getOrders().then(orders => {
+    orders.forEach(order => {
+      GIFT_CONFIG.forEach(config => {
+      if (order.payAmount >= config.fromAmount && order.payAmount < config.toAmount && !order.orderItemList.some(item => item.skuCode === config.skuCode))
+        addGift(order.id, config.itemId)
+      })
+    })
     res.send('')
-  }))
+  })
 })
 
 app.post('/save-cookie', (req, res) => {
